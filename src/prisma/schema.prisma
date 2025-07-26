@@ -1,0 +1,128 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+model User {
+  id              String             @id @default(auto()) @map("_id") @db.ObjectId
+  fullName        String
+  email           String             @unique
+  userName        String             @unique
+  password        String
+  selfNumber      String
+  relativeNumber  String?
+  joinDate        DateTime? 
+  role            Role               @default(Employee)
+  regStatus       RegStatus          @default(pending)
+  workingStatus   WorkStatus         @default(active)
+  perDayWage      Float              @default(0)
+  totalDaysWorked Int                @default(0)
+  totalDaysEarned Float              @default(0)
+
+  attendances         Attendance[]         @relation("EmployeeAttendances")
+  withdrawalRequests  WithdrawalRequest[]  @relation("EmployeeWithdrawals")
+  wageLedger          WageLedger[]       @relation("EmployeeLedger")
+  leaveActionsMarked  LeaveAction[]      @relation("MarkedBy")
+  leaveActions        LeaveAction[]      @relation("EmployeeLeaveActions")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum RegStatus {
+  accepted
+  reject
+  pending
+}
+
+enum WorkStatus {
+  active
+  on_leave
+  resigned
+}
+
+enum Role {
+  Employee
+  Admin
+}
+
+model Attendance {
+  id               String       @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId       String       @db.ObjectId
+  employee         User         @relation("EmployeeAttendances", fields: [employeeId], references: [id])
+  date             DateTime
+  attendanceStatus AttendanceStatus
+  markedAt         DateTime?
+  createdAt        DateTime     @default(now())
+  note             String?
+
+  WageLedger       WageLedger[]
+  leaveAction      LeaveAction? // Optional reverse link (1:1) if this attendance was affected by a leave action
+}
+
+enum AttendanceStatus {
+  present
+  leave
+  auto_leave
+}
+
+model WithdrawalRequest {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId       String             @db.ObjectId
+  employee         User               @relation("EmployeeWithdrawals", fields: [employeeId], references: [id])
+  date             DateTime
+  amount           Float
+  withdrawalStatus WithdrawalStatus
+  comment          String?
+  paidAt           DateTime?
+  createdAt        DateTime           @default(now())
+}
+
+enum WithdrawalStatus {
+  pending
+  approved
+  rejected
+}
+
+model WageLedger {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId    String       @db.ObjectId
+  employee      User         @relation("EmployeeLedger", fields: [employeeId], references: [id])
+  amount        Float
+  attendanceId  String?      @db.ObjectId
+  attendance    Attendance?  @relation(fields: [attendanceId], references: [id])
+  note          String?
+  createdAt     DateTime     @default(now())
+}
+
+model LeaveAction {
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId     String         @db.ObjectId
+  employee       User           @relation("EmployeeLeaveActions", fields: [employeeId], references: [id])
+  markedById     String         @db.ObjectId
+  markedBy       User           @relation("MarkedBy", fields: [markedById], references: [id])
+  dateAppliedTo  DateTime
+  actionType     LeaveActionType
+  note           String?
+
+  attendanceId   String?        @db.ObjectId @unique
+  attendance     Attendance?    @relation(fields: [attendanceId], references: [id])
+
+  createdAt      DateTime       @default(now())
+}
+
+enum LeaveActionType {
+  manual_leave
+  auto_leave
+  resigned
+}
